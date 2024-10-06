@@ -11,4 +11,4 @@ Key features of traJulia are:
 - 
 The tool is currently under development; visit the development blog for more details.
 
- 	[traJulia Development Blog](https://glypo.com/trajulia)
+[traJulia Development Blog](https://glypo.com/trajulia)
