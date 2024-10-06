@@ -4,10 +4,12 @@ module AtmosphereExponential
 This module provides a low-fidelity model of Earth's atmopsheric density. 
 
 It utilises a simple exponential atmosphere model from:
-    Regan et al., "Dynamics of Atmospheric Re-Entry"
+- Regan, F. J. (1993). *Dynamics of Atmospheric Re-Entry*. AIAA Education Series.
 
 # Arguments
 - `altitude`: Altitude above sea level in metres (m).
+
+Note, this altitude is geometric, not geopotential.
 
 # Returns
 - Atmospheric density in kilograms per cubic metre (kg/m³).
