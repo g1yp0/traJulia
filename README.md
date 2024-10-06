@@ -1,5 +1,5 @@
 # traJulia
-## traJulia. Amateur Rocket Flight Simulation
+***traJulia. Amateur Rocket Flight Simulation***
 
 traJulia is a computational tool designed to simulate the flight trajectory of amateur rockets.
 
