@@ -19,13 +19,13 @@ Regan notes:
 
 - `altitude`: Altitude in metres at which to calculate atmospheric properties.
 - `T₀`: Ground level temperature in Kelvin. Optional.
-- `P₀` Ground level pressure in N/m². Optional.
+- `P₀` Ground level pressure in Pa. Optional.
 
 ### Returns:
 
 A tuple containing:
 
-- `pressure`:Atmospheric pressure at the specified altitude (N/m²).
+- `pressure`:Atmospheric pressure at the specified altitude (Pa).
 - `density`:Atmospheric density at the specified altitude (kg/m³).
 - `temperature`:Kinetic temperature at the specified altitude (K).
 - `speed_of_sound`: Speed of sound at the specified altitude (m/s).
@@ -52,11 +52,11 @@ function atmosphere(altitude, T₀=288.15, P₀=101325.0)
     β = 2.0 / Rₚ                  # Reciprocal of planetary radius
     R_specific = R_universal / M₀ # Specific gas constant for air (J·kg⁻¹·K⁻¹)
 
-    # Initialize arrays
+    # Initialise arrays
     z_breakpoints = zeros(21)     # Altitude breakpoints (m)
     T_breakpoints = zeros(21)     # Temperature at breakpoints (K)
     ρ_breakpoints = zeros(21)     # Density at breakpoints (kg/m³)
-    P_breakpoints = zeros(21)     # Pressure at breakpoints (N/m²)
+    P_breakpoints = zeros(21)     # Pressure at breakpoints (Pa)
     M_breakpoints = zeros(21)     # Molecular weight at breakpoints (kg/kmol)
     lapse_rates = zeros(20)       # Lapse rates (K/m)
 
