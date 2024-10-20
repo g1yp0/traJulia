@@ -23,7 +23,7 @@ Regan notes:
 
 ### Returns:
 
-A tuple containing:
+A named tuple containing:
 
 - `pressure`:Atmospheric pressure at the specified altitude (Pa).
 - `density`:Atmospheric density at the specified altitude (kg/m³).
@@ -34,153 +34,151 @@ A tuple containing:
 ### Notes:
 
 - If the specified altitude is outside the range of the model (up to 700 km), the function
-  returns `NaN` for all properties.
+  returns `missing` for all properties.
 - The model assumes that within each atmospheric layer, the temperature varies linearly
   with altitude or remains constant (isothermal layer).
 
 """
 
+using Unitful
+using Unitful.DefaultSymbols  # For unit symbols like m, K, kg, etc.
+
+# Constants
+const R_UNIVERSAL = 8_314.4621u"J/(kmol*K)" # Universal gas constant
+const G0 = 9.80665u"m/s^2"                  # Acceleration due to gravity
+const NA = 6.0221e26u"1/kmol"               # Avogadro's number
+const SIGMA = 3.65e-10u"m"                  # Effective diameter of atmospheric gas molecule
+const M0 = 28.9644u"kg/kmol"                # Molecular weight of air at sea level
+const RP = 6.3781e6u"m"                     # Planetary radius
+const R_SPECIFIC = R_UNIVERSAL / M0         # Specific gas constant for air
+
+# Atmospheric layer data: (Altitude, Temperature, Molecular Weight)
+const DATA = [
+    (11_000u"m",     216.65u"K",   28.9644u"kg/kmol"),
+    (20_000u"m",     216.65u"K",   28.9644u"kg/kmol"),
+    (32_000u"m",     228.65u"K",   28.9644u"kg/kmol"),
+    (47_000u"m",     270.65u"K",   28.9644u"kg/kmol"),
+    (51_000u"m",     270.65u"K",   28.9644u"kg/kmol"),
+    (71_000u"m",     214.65u"K",   28.9644u"kg/kmol"),
+    (86_000u"m",     186.946u"K",  28.952u"kg/kmol"),
+    (100_000u"m",    210.65u"K",   28.88u"kg/kmol"),
+    (110_000u"m",    260.65u"K",   28.56u"kg/kmol"),
+    (120_000u"m",    360.65u"K",   28.07u"kg/kmol"),
+    (150_000u"m",    960.65u"K",   26.92u"kg/kmol"),
+    (160_000u"m",   1110.65u"K",   26.66u"kg/kmol"),
+    (170_000u"m",   1210.65u"K",   26.5u"kg/kmol"),
+    (190_000u"m",   1350.65u"K",   25.85u"kg/kmol"),
+    (230_000u"m",   1550.65u"K",   24.69u"kg/kmol"),
+    (300_000u"m",   1830.65u"K",   22.66u"kg/kmol"),
+    (400_000u"m",   2160.65u"K",   19.94u"kg/kmol"),
+    (500_000u"m",   2420.65u"K",   17.94u"kg/kmol"),
+    (600_000u"m",   2590.65u"K",   16.84u"kg/kmol"),
+    (700_000u"m",   2700.00u"K",   16.17u"kg/kmol")
+]
+
 # Function to calculate atmospheric properties
-function atmosphere(altitude, T₀=288.15, P₀=101325.0)
-    # Constants
-    R_universal = 8313.432        # Universal gas constant (J·kg⁻¹·K⁻¹)
-    g₀ = 9.7803                   # Acceleration due to gravity (m/s²)
-    Nₐ = 6.0221e26                # Avogadro's number (1/kmol)
-    σ = 3.65e-10                  # Effective diameter of atmospheric gas molecule (m)
-    M₀ = 28.9644                  # Molecular weight of air at sea level (kg/kmol)
-    Rₚ = 6.3781e6                 # Planetary radius (m)
-    β = 2.0 / Rₚ                  # Reciprocal of planetary radius
-    R_specific = R_universal / M₀ # Specific gas constant for air (J·kg⁻¹·K⁻¹)
+function atmosphere(altitude; T₀=288.15, P₀=101325.0)
+    altitude = Float64(altitude) * u"m"   # Convert to Float64 and attach units
+    T₀ = Float64(T₀) * u"K"
+    P₀ = Float64(P₀) * u"Pa"
 
-    # Initialise arrays
-    z_breakpoints = zeros(21)     # Altitude breakpoints (m)
-    T_breakpoints = zeros(21)     # Temperature at breakpoints (K)
-    ρ_breakpoints = zeros(21)     # Density at breakpoints (kg/m³)
-    P_breakpoints = zeros(21)     # Pressure at breakpoints (Pa)
-    M_breakpoints = zeros(21)     # Molecular weight at breakpoints (kg/kmol)
-    lapse_rates = zeros(20)       # Lapse rates (K/m)
+    # Check if altitude is within model range
+    if altitude < 0u"m" || altitude > 700_000u"m"
+        return (
+            pressure = missing,
+            density = missing,
+            temperature = missing,
+            speed_of_sound = missing,
+            mean_free_path = missing
+        )
+    end
 
-    # Set initial conditions at sea level
-    z_breakpoints[1] = 0.0
-    T_breakpoints[1] = T₀
-    M_breakpoints[1] = M₀
+    # Initialise arrays with units
+    num_layers = length(DATA)
+    z_breakpoints = [0.0u"m"; [d[1] for d in DATA]]
+    T_breakpoints = [T₀; [d[2] for d in DATA]]
+    M_breakpoints = [M0; [d[3] for d in DATA]]
+
+    # Compute lapse rates
+    lapse_rates = diff(T_breakpoints) ./ diff(z_breakpoints)
+
+    # Initialise pressure and density arrays
+    P_breakpoints = zeros(num_layers + 1) .* u"Pa"
+    rho_breakpoints = zeros(num_layers + 1) .* u"kg/m^3"
     P_breakpoints[1] = P₀
-    ρ_breakpoints[1] = P_breakpoints[1] / (R_specific * T_breakpoints[1])
+    rho_breakpoints[1] = P₀ / (R_SPECIFIC * T₀)
 
-    # Data for atmospheric layers (converted from km to m)
-    data = [
-        (11.0191e3, 216.65, 28.964),
-        (20.0631e3, 216.65, 28.964),
-        (32.1619e3, 228.65, 28.964),
-        (47.3501e3, 270.65, 28.964),
-        (51.4125e3, 270.65, 28.964),
-        (71.8020e3, 214.65, 28.964),
-        (86.00e3,   186.946,28.962),
-        (100.00e3,  210.65, 28.880),
-        (110.00e3,  260.65, 28.560),
-        (120.00e3,  360.65, 28.070),
-        (150.00e3,  960.65, 26.920),
-        (160.00e3, 1110.60, 26.660),
-        (170.00e3, 1210.65, 26.500),
-        (190.00e3, 1350.65, 25.850),
-        (230.00e3, 1550.65, 24.690),
-        (300.00e3, 1830.65, 22.660),
-        (400.00e3, 2160.65, 19.940),
-        (500.00e3, 2420.65, 17.940),
-        (600.00e3, 2590.65, 16.840),
-        (700.00e3, 2700.00, 16.170)
-    ]
-
-    # Populate arrays with data
-    for i in 2:21
-        z_breakpoints[i], T_breakpoints[i], M_breakpoints[i] = data[i - 1]
-    end
-
-    # Calculate lapse rates for each atmospheric layer
-    for i in 1:20
-        lapse_rates[i] = (T_breakpoints[i + 1] - T_breakpoints[i]) / (z_breakpoints[i + 1] - z_breakpoints[i])
-    end
-
-    # Calculate pressure and density at each breakpoint
-    for i in 1:20
-        if abs(lapse_rates[i]) > 0.001
+    # Calculate pressure and density at breakpoints
+    for i in 1:num_layers
+        if lapse_rates[i] != 0u"K/m"
             # Non-isothermal layer
-            A = 1 + β * ((T_breakpoints[i] / lapse_rates[i]) - z_breakpoints[i])
-            exponent = (A * g₀) / (R_specific * lapse_rates[i])
+            exponent = -G0 / (R_SPECIFIC * lapse_rates[i])
             temperature_ratio = T_breakpoints[i + 1] / T_breakpoints[i]
-            pressure_ratio = temperature_ratio^(-exponent)
-            exp_factor = exp((g₀ * β * (z_breakpoints[i + 1] - z_breakpoints[i])) / (R_specific * lapse_rates[i]))
-            P_breakpoints[i + 1] = P_breakpoints[i] * pressure_ratio * exp_factor
-            density_exponent = exponent + 1
-            ρ_breakpoints[i + 1] = ρ_breakpoints[i] * exp_factor * temperature_ratio^(-density_exponent)
+            P_breakpoints[i + 1] = P_breakpoints[i] * temperature_ratio^exponent
+            rho_breakpoints[i + 1] = rho_breakpoints[i] * temperature_ratio^(exponent - 1)
         else
             # Isothermal layer
-            exponent = -g₀ * (z_breakpoints[i + 1] - z_breakpoints[i]) * (1 - (β / 2) * (z_breakpoints[i + 1] + z_breakpoints[i])) / (R_specific * T_breakpoints[i])
+            exponent = -G0 * (z_breakpoints[i + 1] - z_breakpoints[i]) / (R_SPECIFIC * T_breakpoints[i])
             P_breakpoints[i + 1] = P_breakpoints[i] * exp(exponent)
-            ρ_breakpoints[i + 1] = ρ_breakpoints[i] * exp(exponent)
+            rho_breakpoints[i + 1] = rho_breakpoints[i] * exp(exponent)
         end
     end
 
-    # Initialise output variables
-    pressure = NaN
-    density = NaN
-    temperature = NaN
-    speed_of_sound = NaN
-    mean_free_path = NaN
+    # Find the atmospheric layer for the given altitude
+    i = findfirst(x -> altitude < x, z_breakpoints[2:end])
+    if i === nothing
+        return (
+            pressure = missing,
+            density = missing,
+            temperature = missing,
+            speed_of_sound = missing,
+            mean_free_path = missing
+        )
+    end
 
     # Interpolate properties at the desired altitude
-    for i in 1:20
-        if altitude < z_breakpoints[i + 1]
-            if abs(lapse_rates[i]) >= 0.001
-                # Non-isothermal layer
-                temperature = T_breakpoints[i] + lapse_rates[i] * (altitude - z_breakpoints[i])
-                A = 1 + β * ((T_breakpoints[i] / lapse_rates[i]) - z_breakpoints[i])
-                exponent = (A * g₀) / (R_specific * lapse_rates[i])
-                temperature_ratio = temperature / T_breakpoints[i]
-                pressure_ratio = temperature_ratio^(-exponent)
-                exp_factor = exp((β * g₀ * (altitude - z_breakpoints[i])) / (R_specific * lapse_rates[i]))
-                pressure = P_breakpoints[i] * pressure_ratio * exp_factor
-                density_exponent = exponent + 1.0
-                density = ρ_breakpoints[i] * (temperature_ratio^(-density_exponent)) * exp_factor
-            else
-                # Isothermal layer
-                temperature = T_breakpoints[i]
-                exponent = -g₀ * (altitude - z_breakpoints[i]) * (1.0 - (β / 2) * (altitude + z_breakpoints[i])) / (R_specific * T_breakpoints[i])
-                pressure = P_breakpoints[i] * exp(exponent)
-                density = ρ_breakpoints[i] * exp(exponent)
-            end
-
-            # Speed of sound calculation
-            speed_of_sound = sqrt(1.4 * R_specific * temperature)
-
-            # Molecular weight interpolation
-            molecular_weight = M_breakpoints[i] + (M_breakpoints[i + 1] - M_breakpoints[i]) / (z_breakpoints[i + 1] - z_breakpoints[i]) * (altitude - z_breakpoints[i])
-
-            # Adjusted temperature
-            temperature = molecular_weight * temperature / M₀
-
-            # Dynamic viscosity (Sutherland's formula)
-            μ = 1.458e-6 * temperature^(1.5) / (temperature + 110.4)
-
-            # Kinematic viscosity
-            ν = μ / density
-
-            # Thermal conductivity
-            κ = 2.64638e-3 * temperature^(1.5) / (temperature + 245.4 * (10^(-12 / temperature)))
-
-            # Average molecular speed
-            average_molecular_speed = sqrt(8 * R_specific * temperature / π)
-
-            # Collision frequency
-            collision_frequency = sqrt(2) * π * Nₐ * σ^2 * average_molecular_speed
-
-            # Mean free path
-            mean_free_path = average_molecular_speed / collision_frequency
-            break
-        end
+    if lapse_rates[i] != 0u"K/m"
+        # Non-isothermal layer
+        temperature = T_breakpoints[i] + lapse_rates[i] * (altitude - z_breakpoints[i])
+        exponent = -G0 / (R_SPECIFIC * lapse_rates[i])
+        temperature_ratio = temperature / T_breakpoints[i]
+        pressure = P_breakpoints[i] * temperature_ratio^exponent
+        density = rho_breakpoints[i] * temperature_ratio^(exponent - 1)
+    else
+        # Isothermal layer
+        temperature = T_breakpoints[i]
+        exponent = -G0 * (altitude - z_breakpoints[i]) / (R_SPECIFIC * T_breakpoints[i])
+        pressure = P_breakpoints[i] * exp(exponent)
+        density = rho_breakpoints[i] * exp(exponent)
     end
 
-    return pressure, density, temperature, speed_of_sound, mean_free_path
+    # Interpolate molecular weight
+    M_start = M_breakpoints[i]
+    M_end = M_breakpoints[i + 1]
+    z_start = z_breakpoints[i]
+    z_end = z_breakpoints[i + 1]
+    molecular_weight = M_start + (M_end - M_start) * (altitude - z_start) / (z_end - z_start)
+
+    # Adjusted specific gas constant
+    R_specific_adjusted = R_UNIVERSAL / molecular_weight
+
+    # Speed of sound
+    gamma = 1.4  # Ratio of specific heats for air
+    speed_of_sound = sqrt(gamma * R_specific_adjusted * temperature)
+
+    # Mean free path
+    average_molecular_speed = sqrt(8 * R_SPECIFIC * temperature / π)
+    collision_frequency = sqrt(2) * π * NA * SIGMA^2 * average_molecular_speed
+    mean_free_path = average_molecular_speed / collision_frequency
+
+    # Return results without units for compatibility
+    return (
+        pressure = ustrip(pressure),
+        density = ustrip(density),
+        temperature = ustrip(temperature),
+        speed_of_sound = ustrip(speed_of_sound),
+        mean_free_path = ustrip(mean_free_path)
+    )
 end
 
 export atmosphere
