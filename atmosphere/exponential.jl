@@ -15,7 +15,7 @@ It utilises a simple exponential atmosphere model from:
 Note, this altitude is geometric, not geopotential.
 
 # Returns
-- Atmospheric density (ρ) in kilograms per cubic metre (kg/m³).
+- Atmospheric density (ρ), with units (e.g., 1.225u"kg/m^3)
 """
 
 function atmosphere(altitude::Quantity{<:Real, Unitful.𝐋})
