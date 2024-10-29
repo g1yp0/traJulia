@@ -3,6 +3,7 @@ module AtmosphereExponential
 using Unitful
 using Unitful.DefaultSymbols  # For unit symbols like m, kg, etc.
 
+
 """
 This module provides a low-fidelity model of Earth's atmopsheric density. 
 
@@ -10,7 +11,7 @@ It utilises a simple exponential atmosphere model from:
 - Regan, F. J. (1993). 'Dynamics of Atmospheric Re-Entry'.
 
 # Arguments
-- `altitude`: Altitude above sea level in meters (m), with units (e.g., `1000u"m"`).
+- `altitude`: Altitude above sea level in metres (m), with units (e.g., `1000u"m"`).
 
 Note, this altitude is geometric, not geopotential.
 
