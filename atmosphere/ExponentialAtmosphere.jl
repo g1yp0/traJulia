@@ -1,8 +1,7 @@
-module AtmosphereExponential
+module ExponentialAtmosphere
 
 using Unitful
 using Unitful.DefaultSymbols  # For unit symbols like m, kg, etc.
-
 
 """
 This module provides a low-fidelity model of Earth's atmopsheric density. 
@@ -20,7 +19,7 @@ Note, this altitude is geometric, not geopotential.
 """
 
 function atmosphere(altitude::Quantity{<:Real, Unitful.𝐋})
-    ρ0 = 1.225u"kg/m^3"          # Sea level standard density (kg/m³)
+    ρ0 = 1.225u"kg/m^3"          # Sea level standard density
     h_scale = 6700u"m"           # Scale height from Regan
     ρ = ρ0 * exp(-altitude / h_scale)
     return ρ
