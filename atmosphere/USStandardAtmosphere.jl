@@ -1,35 +1,27 @@
 module AtmosphereReganStandard
 
 """
-This module provides atmospheric properties.
+This module provides atmospheric properties based on the 1976 US Standard Atmosphere (US76)
+up to 86 km and the 1962 US Standard Atmosphere (US62) above 86 km.
 
-The 1976 US Standard Atmosphere (US76) is used up to 86 km; for altitudes above 86 km
-the model is based upon the 1962 US Standard Atmosphere (US62).
-
-This approach is described in:
-    Regan, F. J., & Anandakrishnan, S. M. (1993). "Dynamics of Atmospheric Re-Entry".
-
-Regan notes:
-    "The model may easily be changed to meet another standard or to accommodate different
-    views on the value that should be set for the exospheric temperature. The model
-    specifies that thermal layers be identified and that within each layer the temperature
-    varies at most linearly with altitude."
+The model is described in:
+Regan, F. J., & Anandakrishnan, S. M. (1993). "Dynamics of Atmospheric Re-Entry".
 
 ### Arguments:
 
-- `altitude`: Altitude in metres at which to calculate atmospheric properties.
-- `T₀`: Ground level temperature in Kelvin. Optional.
-- `P₀` Ground level pressure in Pa. Optional.
+- `altitude`: Altitude at which to calculate atmospheric properties, with units (e.g., `1000u"m"`).
+- `T₀`: Ground level temperature, with units (default: `288.15u"K"`).
+- `P₀`: Ground level pressure, with units (default: `101325.0u"Pa"`).
 
 ### Returns:
 
 A named tuple containing:
 
-- `pressure`:Atmospheric pressure at the specified altitude (Pa).
-- `density`:Atmospheric density at the specified altitude (kg/m³).
-- `temperature`:Kinetic temperature at the specified altitude (K).
-- `speed_of_sound`: Speed of sound at the specified altitude (m/s).
-- `mean_free_path`: Mean free path length at the specified altitude (m).
+- `pressure`: Atmospheric pressure at the specified altitude.
+- `density`: Atmospheric density at the specified altitude.
+- `temperature`: Kinetic temperature at the specified altitude.
+- `speed_of_sound`: Speed of sound at the specified altitude.
+- `mean_free_path`: Mean free path length at the specified altitude.
 
 ### Notes:
 
@@ -37,6 +29,7 @@ A named tuple containing:
   returns `missing` for all properties.
 - The model assumes that within each atmospheric layer, the temperature varies linearly
   with altitude or remains constant (isothermal layer).
+- The use of Unitful.jl means that units are specified in variable definition
 
 """
 
@@ -51,6 +44,7 @@ const SIGMA = 3.65e-10u"m"                  # Effective diameter of atmospheric 
 const M0 = 28.9644u"kg/kmol"                # Molecular weight of air at sea level
 const RP = 6.3781e6u"m"                     # Planetary radius
 const R_SPECIFIC = R_UNIVERSAL / M0         # Specific gas constant for air
+const GAMMA = 1.4u"1"                       # Ratio of specific heats for air (unitless)
 
 # Atmospheric layer data: (Altitude, Temperature, Molecular Weight)
 const DATA = [
@@ -77,10 +71,10 @@ const DATA = [
 ]
 
 # Function to calculate atmospheric properties
-function atmosphere(altitude; T₀=288.15, P₀=101325.0)
-    altitude = Float64(altitude) * u"m"   # Convert to Float64 and attach units
-    T₀ = Float64(T₀) * u"K"
-    P₀ = Float64(P₀) * u"Pa"
+function atmosphere(altitude::Quantity{<:Real, Unitful.𝐋}; T₀=288.15u"K", P₀=101325.0u"Pa")
+    # Ensure altitude has length units
+    altitude = Unitful.upreferred(altitude)
+    @assert u"m" == unit(altitude) "Altitude must have length units (e.g., meters)."
 
     # Check if altitude is within model range
     if altitude < 0u"m" || altitude > 700_000u"m"
@@ -163,24 +157,23 @@ function atmosphere(altitude; T₀=288.15, P₀=101325.0)
     R_specific_adjusted = R_UNIVERSAL / molecular_weight
 
     # Speed of sound
-    gamma = 1.4  # Ratio of specific heats for air
-    speed_of_sound = sqrt(gamma * R_specific_adjusted * temperature)
+    speed_of_sound = sqrt(GAMMA * R_specific_adjusted * temperature)
 
     # Mean free path
     average_molecular_speed = sqrt(8 * R_SPECIFIC * temperature / π)
-    collision_frequency = sqrt(2) * π * NA * SIGMA^2 * average_molecular_speed
+    collision_frequency = sqrt(2) * π * NA * SIGMA^2 * average_molecular_speed * density / molecular_weight
     mean_free_path = average_molecular_speed / collision_frequency
 
-    # Return results without units for compatibility
+    # Return results with units
     return (
-        pressure = ustrip(pressure),
-        density = ustrip(density),
-        temperature = ustrip(temperature),
-        speed_of_sound = ustrip(speed_of_sound),
-        mean_free_path = ustrip(mean_free_path)
+        pressure = pressure,
+        density = density,
+        temperature = temperature,
+        speed_of_sound = speed_of_sound,
+        mean_free_path = mean_free_path
     )
 end
 
 export atmosphere
 
-end 
+end  # module AtmosphereReganStandard
